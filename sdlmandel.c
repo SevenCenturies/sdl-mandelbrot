@@ -7,9 +7,14 @@
 #include <stdio.h>
 #include <math.h>
 #include <complex.h>
+#ifdef NOSPIRE
+#include "libnodls.h"
+#else
+#include <libndls.h>
+#endif
 
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 320
+#define HEIGHT 240
 
 #define START_POS   -0.5
 #define START_ZOOM  (WIDTH * 0.25296875f)
@@ -18,6 +23,8 @@
 #define FLIPS           24
 
 #define ZOOM_FACTOR     4
+
+SDL_Surface *surface;
 
 void sdl_draw_mandelbrot(SDL_Surface *surface, complex double center, double zoom)
 {
@@ -32,14 +39,14 @@ void sdl_draw_mandelbrot(SDL_Surface *surface, complex double center, double zoo
     fprintf(stderr, "center point: %f %+fi\n", creal(center), 
                                               cimag(center) );
     fprintf(stderr, "iterations: %d\n", maxiter);
-
+    SDL_ShowCursor(SDL_DISABLE);
     for (f = 0; f < FLIPS; f++)
     {
         for  (y = f; y < HEIGHT; y += FLIPS)
         {
             for (x = 0; x < WIDTH; x++)
             {
-                /* Get the complex poing on gauss space to be calculate */
+                /* Get the complex point on gauss space to be calculate */
                 z = c = creal(center) + ((x - (WIDTH/2))/zoom) + 
                     ((cimag(center) + ((y - (HEIGHT/2))/zoom))*_Complex_I);
 
@@ -60,7 +67,7 @@ void sdl_draw_mandelbrot(SDL_Surface *surface, complex double center, double zoo
 
                 /* Paint the pixel calculated depending on the number 
                    of iterations found */
-                ((Uint32*)surface->pixels)[(y*surface->w) + x] = (n >= maxiter)? 0 :
+                ((Uint16*)surface->pixels)[(y*surface->w) + x] = (n >= maxiter)? 0 :
                     SDL_MapRGB( surface->format,
                     (1+sin(C*0.27 + 5))*127., (1+cos(C*0.85))*127., (1+sin(C*0.15))*127. );
             }
@@ -69,29 +76,37 @@ void sdl_draw_mandelbrot(SDL_Surface *surface, complex double center, double zoo
             rects[y/FLIPS].w = WIDTH;
             rects[y/FLIPS].h = 1;
         }
-        SDL_UpdateRects(surface, HEIGHT/FLIPS, rects);
+        SDL_Flip(surface);
+        //SDL_UpdateRects(surface, HEIGHT/FLIPS, rects);
     }
+    SDL_ShowCursor(SDL_ENABLE);
+}
+
+void init(void) {
+  if(SDL_Init(SDL_INIT_VIDEO) == -1) {
+    printf("Couldn't initialize SDL: %s\n", SDL_GetError());
+    exit(EXIT_FAILURE);
+  }
+  surface = SDL_SetVideoMode(320, 240, has_colors ? 16 : 8, SDL_SWSURFACE);
+  if(surface == NULL) {
+    printf("Couldn't initialize display: %s\n", SDL_GetError());
+    SDL_Quit();
+    exit(EXIT_FAILURE);
+  }
+  SDL_ShowCursor(SDL_ENABLE);
+}
+
+void quit(void) {
+  //SDL_FreeSurface(player.sprite);
+  //SDL_FreeSurface(map.tileset);
+  SDL_Quit();
 }
 
 int main(int argc, char **argv)
 {
     /* SDL SEtup */
-    if ( SDL_Init(SDL_INIT_VIDEO) < 0 )
-    {
-        fprintf(stderr, "Could not initialize SDL: %s\n", SDL_GetError());
-        exit(1);
-    }
-    atexit(SDL_Quit);
-
-    SDL_Surface *surface;
-
-    surface = SDL_SetVideoMode(WIDTH, HEIGHT, 32, SDL_HWSURFACE);
-    if ( surface == NULL )
-    {
-        fprintf(stderr, "Could not setup screen to resolution %dx%d : %s\n", 
-                WIDTH, HEIGHT, SDL_GetError());
-        exit(1);
-    }
+  init();
+  atexit(quit);
 
     /* Initialize variables */
     double complex center = START_POS;
@@ -117,7 +132,8 @@ int main(int argc, char **argv)
                 }
                 else if (event.key.keysym.sym == SDLK_ESCAPE)
                 {
-                    exit(0);
+                  quit();
+                  return 0;
                 }
                 break;
             case SDL_MOUSEBUTTONDOWN:
@@ -135,5 +151,6 @@ int main(int argc, char **argv)
         }
     }
 
+    quit();
     return 0;
 }
